@@ -189,7 +189,7 @@ class PENCA(NCA):
     def adaptation(self, s, dx=1.0, dy=1.0):
         z = self.perception(s, dx, dy)
 
-        if self.cached_grid is None and self.last_shape == s.shape:
+        if self.cached_grid is not None and self.last_shape == s.shape:
             grid = self.cached_grid
         else:
             b, _, h, w = s.shape
