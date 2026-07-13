@@ -104,20 +104,28 @@ class Loss(torch.nn.Module):
         loss = 0
         loss_log_dict = {}
         summary_dict = {}
+        scalar_names = []
+        scalar_tensors = []
         for loss_name in self.loss_mapper:
             l, loss_log, sub_summary = self.loss_mapper[loss_name](input_dict, return_summary=return_summary)
 
             if loss_log is not None:
                 for sub_loss_name in loss_log:
-                    loss_log_dict[f'{loss_name}-{sub_loss_name}'] = loss_log[sub_loss_name].item()
+                    scalar_names.append(f'{loss_name}-{sub_loss_name}')
+                    scalar_tensors.append(loss_log[sub_loss_name])
 
             if sub_summary is not None:
                 for summary_name in sub_summary:
                     summary_dict[f'{loss_name}-{summary_name}'] = sub_summary[summary_name]
 
-            loss_log_dict[loss_name] = l.item()
-            l *= self.loss_weights[loss_name]
+            scalar_names.append(loss_name)
+            scalar_tensors.append(l)
+            l = l * self.loss_weights[loss_name]
             loss += l
+
+        # Materialize all logged scalars with a single device sync instead of one .item() each.
+        for name, value in zip(scalar_names, torch.stack([t.detach() for t in scalar_tensors]).tolist()):
+            loss_log_dict[name] = value
 
         output = [loss]
         if return_log:
