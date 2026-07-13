@@ -65,6 +65,7 @@ class AppearanceLoss(torch.nn.Module):
         self.device = device
 
         vgg = torch_models.vgg16(weights=torch_models.VGG16_Weights.IMAGENET1K_V1).features.to(device)
+        vgg.requires_grad_(False)
         vgg_layers = []
         for l in vgg:
             # if isinstance(l, torch.nn.MaxPool2d):

@@ -30,6 +30,7 @@ class MotionLoss(torch.nn.Module):
 
         self.cos_sim = torch.nn.CosineSimilarity(dim=1)
         self.motion_model = _load_MSOEmultiscale_model().to(device).eval()
+        self.motion_model.requires_grad_(False)
         print(f"Successfully Loaded the pretrained Optic Flow model.")
 
         self._create_losses()
