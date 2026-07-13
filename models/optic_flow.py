@@ -2,26 +2,36 @@ import torch
 import numpy as np
 
 
+_symmetric_padding_cache = {}
+
+
 def symmetric_padding(im, padding):
     h, w = im.shape[-2:]
     left, right, top, bottom = padding
 
-    x_idx = np.arange(-left, w + right)
-    y_idx = np.arange(-top, h + bottom)
+    key = (h, w, padding, im.device)
+    cached = _symmetric_padding_cache.get(key)
+    if cached is None:
+        x_idx = np.arange(-left, w + right)
+        y_idx = np.arange(-top, h + bottom)
 
-    def reflect(x, minx, maxx):
-        """ Reflects an array around two points making a triangular waveform that ramps up
-        and down,  allowing for pad lengths greater than the input length """
-        rng = maxx - minx
-        double_rng = 2 * rng
-        mod = np.fmod(x - minx, double_rng)
-        normed_mod = np.where(mod < 0, mod + double_rng, mod)
-        out = np.where(normed_mod >= rng, double_rng - normed_mod, normed_mod) + minx
-        return np.array(out, dtype=x.dtype)
+        def reflect(x, minx, maxx):
+            """ Reflects an array around two points making a triangular waveform that ramps up
+            and down,  allowing for pad lengths greater than the input length """
+            rng = maxx - minx
+            double_rng = 2 * rng
+            mod = np.fmod(x - minx, double_rng)
+            normed_mod = np.where(mod < 0, mod + double_rng, mod)
+            out = np.where(normed_mod >= rng, double_rng - normed_mod, normed_mod) + minx
+            return np.array(out, dtype=x.dtype)
 
-    x_pad = reflect(x_idx, -0.5, w - 0.5)
-    y_pad = reflect(y_idx, -0.5, h - 0.5)
-    xx, yy = np.meshgrid(x_pad, y_pad)
+        x_pad = reflect(x_idx, -0.5, w - 0.5)
+        y_pad = reflect(y_idx, -0.5, h - 0.5)
+        xx, yy = np.meshgrid(x_pad, y_pad)
+        cached = (torch.from_numpy(yy).to(im.device), torch.from_numpy(xx).to(im.device))
+        _symmetric_padding_cache[key] = cached
+
+    yy, xx = cached
     return im[..., yy, xx]
 
 
