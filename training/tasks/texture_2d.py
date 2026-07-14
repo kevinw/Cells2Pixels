@@ -67,6 +67,10 @@ class Texture2DTask(BaseTask):
             loss_fn, renderer, grid_size = self._loss_renderer_grid(output_channels)
 
         train_cfg = self.config["train"]
+        compile_siren = train_cfg.get("compile_siren", False)
+        render_siren = torch.compile(siren, mode="default") if compile_siren else siren
+        if compile_siren:
+            print("Compiling SIREN with torch.compile mode 'default'")
         num_reps = train_cfg.get("num_repetitions", 1)
         for repetition in range(rep_start, num_reps):
             with torch.no_grad():
@@ -89,7 +93,7 @@ class Texture2DTask(BaseTask):
                         x, z = model(x)
                 x_render = (x if self.config["nca"].get("output_type", "s") == "s" else z).to(torch.float32)
                 # autocast (fp16) is applied inside renderer.render() around the SIREN call only.
-                rendered = renderer.render(x_render.permute(0, 2, 3, 1), siren, None, fs_shader="vanilla")
+                rendered = renderer.render(x_render.permute(0, 2, 3, 1), render_siren, None, fs_shader="vanilla")
                 rendered = rendered.permute(0, 3, 1, 2).to(torch.float32)
 
                 of_channels = np.random.permutation(model.channels)[:3]
@@ -108,7 +112,7 @@ class Texture2DTask(BaseTask):
                         with torch.no_grad():
                             image = renderer.render(
                                 x_render.permute(0, 2, 3, 1),
-                                siren,
+                                render_siren,
                                 target_channels=output_channels,
                                 fs_shader="pbr",
                             )
