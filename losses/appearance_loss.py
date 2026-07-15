@@ -307,7 +307,13 @@ class OptimalTransportLoss(torch.nn.Module):
         x_yuv = self.rgb_to_yuv(x)
         y_yuv = self.rgb_to_yuv(y)
 
-        pairwise_distance = self.pairwise_distances_l2(x_yuv, y_yuv) + self.pairwise_distances_cos(x_yuv, y_yuv)
+        y_t = y_yuv.transpose(1, 2)
+        cross = torch.matmul(x_yuv, y_t)
+        x_norm_squared = torch.square(x_yuv).sum(dim=2, keepdim=True)
+        y_norm_squared = torch.square(y_t).sum(dim=1, keepdim=True)
+        l2 = torch.clamp(x_norm_squared + y_norm_squared - 2.0 * cross, 1e-5, 1e5) / x_yuv.size(2)
+        cosine = 1.0 - cross / (torch.sqrt(x_norm_squared * y_norm_squared) + 1e-10)
+        pairwise_distance = l2 + cosine
 
         m1, m1_inds = pairwise_distance.min(1)
         m2, m2_inds = pairwise_distance.min(2)
@@ -326,9 +332,9 @@ class OptimalTransportLoss(torch.nn.Module):
         :return: (b, n, m)
         """
         # x, y: (b, n or m, c)
-        x_norm = torch.norm(x, dim=2, keepdim=True) ** 2  # (b, n, 1)
+        x_norm = torch.square(x).sum(dim=2, keepdim=True)  # (b, n, 1)
         y_t = y.transpose(1, 2)  # (b, c, m) (m may be different from n)
-        y_norm = torch.norm(y_t, dim=1, keepdim=True) ** 2  # (b, 1, m)
+        y_norm = torch.square(y_t).sum(dim=1, keepdim=True)  # (b, 1, m)
         cross = torch.matmul(x, y_t)
         dist = x_norm + y_norm - 2.0 * cross  # x + y is of shape b, n, m because of point-wise adding (broadcasting)
         return torch.clamp(dist, 1e-5, 1e5) / x.size(2)
@@ -425,11 +431,12 @@ class OptimalTransportLoss(torch.nn.Module):
             # We randomly select n_samples point from the features to calculate the OT loss
             n_samples = min(n_x, n_y, self.n_samples)
 
-            indices_x = torch.argsort(torch.rand(b, 1, n_x, device=x.device), dim=-1)[..., :n_samples]
-            x = x.gather(-1, indices_x.expand(b, c_x, n_samples))
-
-            indices_y = torch.argsort(torch.rand(b, 1, n_y, device=y.device), dim=-1)[..., :n_samples]
-            y = y.gather(-1, indices_y.expand(b, c_y, n_samples))
+            if n_samples < n_x:
+                indices_x = torch.multinomial(torch.ones(b, n_x, device=x.device), n_samples).unsqueeze(1)
+                x = x.gather(-1, indices_x.expand(b, c_x, n_samples))
+            if n_samples < n_y:
+                indices_y = torch.multinomial(torch.ones(b, n_y, device=y.device), n_samples).unsqueeze(1)
+                y = y.gather(-1, indices_y.expand(b, c_y, n_samples))
 
             x = x.transpose(1, 2)  # (b, n_samples, c)
             y = y.transpose(1, 2)  # (b, n_samples, c)

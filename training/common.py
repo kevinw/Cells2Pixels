@@ -67,7 +67,7 @@ def precision_from_config(config: dict[str, Any]) -> torch.dtype:
 
 
 def make_grad_scaler(device: torch.device, precision: torch.dtype):
-    enabled = device.type == "cuda" and precision == torch.float16
+    enabled = device.type in ("cuda", "mps") and precision == torch.float16
     return torch.amp.GradScaler(device.type, enabled=enabled)
 
 

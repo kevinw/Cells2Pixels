@@ -91,7 +91,7 @@ class Texture2DTask(BaseTask):
                 with autocast_context(self.device, precision):
                     for _ in range(step_n):
                         x, z = model(x)
-                x_render = (x if self.config["nca"].get("output_type", "s") == "s" else z).to(torch.float32)
+                x_render = x if self.config["nca"].get("output_type", "s") == "s" else z
                 # autocast (fp16) is applied inside renderer.render() around the SIREN call only.
                 rendered = renderer.render(x_render.permute(0, 2, 3, 1), render_siren, None, fs_shader="vanilla")
                 rendered = rendered.permute(0, 3, 1, 2).to(torch.float32)

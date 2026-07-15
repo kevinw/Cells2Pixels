@@ -21,14 +21,14 @@ def auto_device():
 
 
 def autocast_context(device: torch.device, precision: torch.dtype = torch.float32):
-    """fp16 autocast context, enabled only on CUDA when precision is float16.
+    """fp16 autocast context for CUDA and MPS when precision is float16.
 
     Used both for the NCA rollout in the training tasks and, scoped to the SIREN call,
     inside the renderers (so rasterization / volumetric integration stay in fp32).
     Returns a no-op context otherwise, so callers can wrap code unconditionally
     regardless of the configured precision / device.
     """
-    enabled = device.type == "cuda" and precision == torch.float16
+    enabled = device.type in ("cuda", "mps") and precision == torch.float16
     if enabled:
         return torch.autocast(device_type=device.type, dtype=precision)
     return nullcontext()
