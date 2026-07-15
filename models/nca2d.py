@@ -51,6 +51,11 @@ class NCA(torch.nn.Module):
         self.channels, self.fc_dim, self.padding, self.perception_kernels = channels, fc_dim, padding, perception_kernels
         self.cond_chn, self.update_prob, self.device = cond_chn, update_prob, device
         self.precision = precision
+        self.state_dtype = (
+            torch.float32
+            if device is not None and torch.device(device).type == 'mps' and precision == torch.float16
+            else precision
+        )
 
         self.w1 = torch.nn.Conv2d(channels * perception_kernels + cond_chn, fc_dim, 1, bias=True, device=device)
         self.w2 = torch.nn.Conv2d(fc_dim, channels, 1, bias=False, device=device)
@@ -141,7 +146,7 @@ class NCA(torch.nn.Module):
 
     def seed(self, n, h=128, w=128):
         """Starting cell state"""
-        return torch.zeros(n, self.channels, h, w, device=self.device, dtype=self.precision)
+        return torch.zeros(n, self.channels, h, w, device=self.device, dtype=self.state_dtype)
 
     def to(self, *args, **kwargs):
         super().to(*args, **kwargs)
@@ -168,7 +173,7 @@ class NoiseNCA(NCA):
         self.register_buffer("noise_level", torch.tensor([noise_level], device=self.device, dtype=self.precision))
 
     def seed(self, n, h=128, w=128):
-        return (torch.rand(n, self.channels, h, w, device=self.device, dtype=self.precision) - 0.5) * self.noise_level
+        return (torch.rand(n, self.channels, h, w, device=self.device, dtype=self.state_dtype) - 0.5) * self.noise_level
 
 
 class PENCA(NCA):
@@ -207,7 +212,7 @@ class PENCA(NCA):
         return delta_s, z
 
     def seed(self, n, h=128, w=128):
-        return (torch.rand(n, self.channels, h, w, device=self.device, dtype=self.precision) - 0.5) * self.noise_level
+        return (torch.rand(n, self.channels, h, w, device=self.device, dtype=self.state_dtype) - 0.5) * self.noise_level
 
 
 class GrowingNCA(NCA):
@@ -241,7 +246,6 @@ class GrowingNCA(NCA):
         return torch.nn.functional.max_pool2d(alpha, K, stride=1, padding=K // 2) > 0.1
 
     def seed(self, n, h=128, w=128):
-        s = torch.zeros(n, self.channels, h, w, device=self.device, dtype=self.precision)
+        s = torch.zeros(n, self.channels, h, w, device=self.device, dtype=self.state_dtype)
         s[:, 3:, h // 2, w // 2] = 1.0
         return s
-
