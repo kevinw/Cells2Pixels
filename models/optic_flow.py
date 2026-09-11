@@ -112,10 +112,10 @@ class MSOEnet(torch.nn.Module):
         x1 = x[..., 1]
         x0 = symmetric_padding(x0, (5, 5, 5, 5))
         x1 = symmetric_padding(x1, (5, 5, 5, 5))
-        x = torch.stack([x0, x1], dim=-1)
-        x = self.conv1(x)
+        # conv1's (11, 11, 2) kernel spans both frames: apply it as a 2D conv with the frames as input channels.
+        weight = self.conv1.weight.squeeze(1).permute(0, 3, 1, 2)
+        x = torch.nn.functional.conv2d(torch.cat([x0, x1], dim=1), weight, self.conv1.bias)
         x = torch.square(x)
-        x = x.squeeze(-1)
         x = self.maxpool(x)
         x = self.conv2(x)
         x = self.l1_normalize(x)
